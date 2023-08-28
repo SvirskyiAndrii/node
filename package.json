@@ -1,0 +1,20 @@
+{
+  "name": "environment",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node-forge": "^1.3.4",
+    "typescript": "^5.1.6"
+  },
+  "dependencies": {
+    "@peculiar/webcrypto": "^1.4.3",
+    "gdgateway-client": "github:Ghost-Drive/gdgateway-client",
+    "separate-library": "github:SvirskyiAndrii/separate-library"
+  }
+}
