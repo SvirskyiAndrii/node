@@ -84,7 +84,7 @@ const func = async () => {
 
   const dispatch = null; // figure out
 
-  const result = await await uploadFile(
+  const result = await uploadFile(
     customFileObject,
     startTime,
     oneTimeToken,
