@@ -39,15 +39,14 @@ const getDownloadOTT = (body) => {
 };
 
 class CustomFile {
-  constructor(buffer, stream, filename, mimeType, fileFolderId) {
-    // this.arrayBuffer = () => buffer;
+  constructor(size, stream, filename, mimeType, fileFolderId) {
     this.stream = () => stream;
     this.isStream = true;
     this.name = filename;
     this.type = mimeType;
     this.folderId = fileFolderId;
-    this.size = buffer.byteLength;
-    this.upload_id = `${filename}_${buffer.byteLength}_${fileFolderId}`;
+    this.size = size;
+    this.upload_id = `${filename}_${size}_${fileFolderId}`;
   }
 }
 // UPLOAD FILE
@@ -57,11 +56,11 @@ const upload = async () => {
   const mimeType = "image/png";
   const folderId = "";
 
-  const fileBuffer = await fs.promises.readFile(filePath);
   const fileStream = fs.createReadStream(filePath);
+  const { size } = await fs.promises.stat(filePath);
 
   const customFile = new CustomFile(
-    fileBuffer,
+    size,
     fileStream,
     filename,
     mimeType,
