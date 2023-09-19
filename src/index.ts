@@ -1,59 +1,34 @@
 // @ts-nocheck
-import { uploadFile, downloadFile } from "gdgateway-client/lib/es5";
+import * as forge from "node-forge";
 import * as fs from "fs";
-import authRequest from "./auth-request.js";
-const axios = require("axios");
+import axios from "axios";
+import { Crypto } from "@peculiar/webcrypto";
 
-const updateProgressCallback = (
-  id: string,
-  progress: string | number,
-  timeLeft: string | number,
-  dispatch: any
-) => {
-  console.log("updateProgressCallback");
-};
-const encodeFileData = {
-  callbacks: {
-    onProgress: updateProgressCallback,
-  },
-  handlers: ["onProgress"],
-};
+import { uploadFile, downloadFile, WebCrypto } from "separate-library/lib/es5";
 
-const { handlers, callbacks } = encodeFileData;
+import {
+  CustomFile,
+  convertArrayBufferToBase64,
+  getDownloadOTT,
+  getKeysByWorkspace,
+  getOneTimeToken,
+  saveEncryptedFileKeys,
+  callback,
+  handlers,
+} from "./functions";
 
-const callback = ({ type, params }) => {
-  if (handlers.includes(type)) {
-    callbacks[type]({ ...params });
-  } else {
-    console.error(`Handler "${type}" isn't provided`);
-  }
-};
+const crypter = new WebCrypto();
 
-const getOneTimeToken = ({ filesize = "", filename = "" }) => {
-  const url = `https://api.dev.ghostdrive.com/api/user/generate/token`;
-  return authRequest.post(url, { filesize, filename });
-};
-const getDownloadOTT = (body) => {
-  const url = `https://api.dev.ghostdrive.com/api/download/generate/token`;
-  return authRequest.post(url, body);
-};
-
-class CustomFile {
-  constructor(size, stream, filename, mimeType, fileFolderId) {
-    this.stream = () => stream;
-    this.isStream = true;
-    this.name = filename;
-    this.type = mimeType;
-    this.folderId = fileFolderId;
-    this.size = size;
-    this.upload_id = `${filename}_${size}_${fileFolderId}`;
-  }
-}
 // UPLOAD FILE
-const upload = async () => {
-  const filePath = "./src/file-from-node.png";
-  const filename = "file-from-node.png";
-  const mimeType = "image/png";
+const upload = async ({ encrypt }) => {
+  const filePath = "./src/river-5.jpg"; // > 1 mb (6 chunks)
+  const filename = "river-5.jpg";
+  const mimeType = "image/jpeg";
+
+  // const filePath = "./src/file-from-node.png"; // < 1 mb
+  // const filename = "file-from-node.png";
+  // const mimeType = "image/png";
+
   const folderId = "";
 
   const fileStream = fs.createReadStream(filePath);
@@ -76,33 +51,78 @@ const upload = async () => {
     filename: customFile.name,
     filesize: customFile.size,
   });
+  let result;
+  if (!encrypt) {
+    result = await uploadFile({
+      file: customFile,
+      oneTimeToken,
+      endpoint,
+      callback,
+      handlers,
+    });
+  } else {
+    const crypto = new Crypto();
+    const key = await crypto.subtle.generateKey(
+      { name: "AES-GCM", length: 256 },
+      true,
+      ["encrypt", "decrypt"]
+    );
+    const {
+      data: { keys },
+    } = await getKeysByWorkspace();
 
-  const { data } = await uploadFile({
-    file: customFile,
-    oneTimeToken,
-    endpoint,
-    callback,
-    handlers,
-  });
+    result = await crypter.encodeFile({
+      file: customFile,
+      oneTimeToken,
+      endpoint,
+      callback,
+      handlers,
+      key,
+    });
 
-  console.log("___________________________SUCCESSFULLY UPLOADED", data);
-  return data;
+    if (result) {
+      const bufferKey = await crypto.subtle.exportKey("raw", key);
+      const base64Key = convertArrayBufferToBase64(bufferKey);
+
+      let encryptedKeys = [];
+
+      for (let i = 0; i < keys.length; i++) {
+        const publicKey = forge.pki.publicKeyFromPem(keys[i]);
+        const encryptedKey = await publicKey.encrypt(base64Key);
+        const encryptedHexKey = forge.util.bytesToHex(encryptedKey);
+        encryptedKeys = [
+          ...encryptedKeys,
+          { publicKey: keys[i], encryptedFileKey: encryptedHexKey },
+        ];
+      }
+
+      saveEncryptedFileKeys({
+        slug: result?.data?.data?.slug,
+        encryptedKeys: encryptedKeys,
+      });
+    }
+  }
+
+  console.log(
+    "___________________________SUCCESSFULLY UPLOADED",
+    result?.data?.data
+  );
+  return result;
 };
+
+upload({ encrypt: false }); // CHANGE 'encrypt' TO true IF NEED ENCRYPTION
 
 // DOWNLOAD FILE
 const download = async () => {
-  const { data } = await upload();
-
+  const data = upload({ encrypt: true });
   const { CancelToken } = axios;
   const signal = CancelToken.source();
-
   const {
     data: {
       user_tokens: { token: oneTimeToken },
       endpoint,
     },
   } = await getDownloadOTT([{ slug: data.slug }]);
-
   const stream = await downloadFile({
     file: data,
     oneTimeToken,
@@ -113,4 +133,4 @@ const download = async () => {
   console.log("___________________________SUCCESSFULLY DOWNLOADED", stream);
 };
 
-download();
+// download();
