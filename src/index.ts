@@ -4,10 +4,14 @@ import * as fs from "fs";
 import axios from "axios";
 import { Crypto } from "@peculiar/webcrypto";
 
-import { uploadFile, downloadFile, WebCrypto } from "separate-library/lib/es5";
+import {
+  uploadFile,
+  downloadFile,
+  WebCrypto,
+  LocalFileStream,
+} from "separate-library/lib/es5";
 
 import {
-  CustomFile,
   convertArrayBufferToBase64,
   getDownloadOTT,
   getKeysByWorkspace,
@@ -15,32 +19,25 @@ import {
   saveEncryptedFileKeys,
   callback,
   handlers,
+  getThumbnailImage,
+  getThumbnailVideo,
 } from "./functions";
 
 const crypter = new WebCrypto();
 
 // UPLOAD FILE
 const upload = async ({ encrypt }) => {
-  const filePath = "./src/river-5.jpg"; // > 1 mb (6 chunks)
-  const filename = "river-5.jpg";
+  const filename = "./src/river-5.jpg"; // > 1 mb (6 chunks)
   const mimeType = "image/jpeg";
 
-  // const filePath = "./src/file-from-node.png"; // < 1 mb
-  // const filename = "file-from-node.png";
+  // const filename = "./src/file-from-node.png"; // < 1 mb
   // const mimeType = "image/png";
 
   const folderId = "";
 
-  const fileStream = fs.createReadStream(filePath);
-  const { size } = await fs.promises.stat(filePath);
+  const { size } = await fs.promises.stat(filename);
 
-  const customFile = new CustomFile(
-    size,
-    fileStream,
-    filename,
-    mimeType,
-    folderId
-  );
+  const customFile = new LocalFileStream(size, filename, mimeType, folderId);
 
   const {
     data: {
@@ -67,9 +64,20 @@ const upload = async ({ encrypt }) => {
       true,
       ["encrypt", "decrypt"]
     );
+
     const {
       data: { keys },
     } = await getKeysByWorkspace();
+
+    let base64Image;
+
+    // if (customFile.type.startsWith("image")) { // DOES NOT WORK ON NODE -  should figure out how to do thumbnails on node
+    //   base64Image = await getThumbnailImage(customFile);
+    // } else if (customFile.type.startsWith("video")) {
+    //   base64Image = await getThumbnailVideo(customFile);
+    // }
+
+    console.log("base64Image", base64Image);
 
     result = await crypter.encodeFile({
       file: customFile,
@@ -110,7 +118,7 @@ const upload = async ({ encrypt }) => {
   return result;
 };
 
-upload({ encrypt: false }); // CHANGE 'encrypt' TO true IF NEED ENCRYPTION
+upload({ encrypt: true }); // CHANGE 'encrypt' TO true IF NEED ENCRYPTION
 
 // DOWNLOAD FILE
 const download = async () => {
