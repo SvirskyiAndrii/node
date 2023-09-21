@@ -19,9 +19,9 @@ import {
   saveEncryptedFileKeys,
   callback,
   handlers,
-  getThumbnailImage,
-  getThumbnailVideo,
 } from "./functions";
+
+import { getThumbnailImage } from "./getThumbnail";
 
 const crypter = new WebCrypto();
 
@@ -69,15 +69,9 @@ const upload = async ({ encrypt }) => {
       data: { keys },
     } = await getKeysByWorkspace();
 
-    let base64Image;
+    const base64Image = await getThumbnailImage({ path: filename });
 
-    // if (customFile.type.startsWith("image")) { // DOES NOT WORK ON NODE -  should figure out how to do thumbnails on node
-    //   base64Image = await getThumbnailImage(customFile);
-    // } else if (customFile.type.startsWith("video")) {
-    //   base64Image = await getThumbnailVideo(customFile);
-    // }
-
-    console.log("base64Image", base64Image);
+    console.log("THIS IS THUMBNAIL ----------------->>>", base64Image);
 
     result = await crypter.encodeFile({
       file: customFile,
@@ -108,13 +102,36 @@ const upload = async ({ encrypt }) => {
         slug: result?.data?.data?.slug,
         encryptedKeys: encryptedKeys,
       });
+
+      const {
+        data: {
+          user_token: { token: thumbToken },
+          endpoint: thumbEndpoint,
+        },
+      } = await getOneTimeToken({
+        filename: customFile.name,
+        filesize: customFile.size,
+      });
+
+      const instance = axios.create({
+        headers: {
+          "x-file-name": customFile.name,
+          "Content-Type": "application/octet-stream",
+          "one-time-token": thumbToken,
+        },
+      });
+
+      if (base64Image) {
+        await instance.post(
+          `${thumbEndpoint}/chunked/thumb/${result?.data?.data?.slug}`,
+          base64Image
+        );
+      }
     }
   }
 
-  console.log(
-    "___________________________SUCCESSFULLY UPLOADED",
-    result?.data?.data
-  );
+  console.log("SUCCESSFULLY UPLOADED ----------------->>>", result?.data?.data);
+
   return result;
 };
 

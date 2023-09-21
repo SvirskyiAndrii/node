@@ -9,6 +9,7 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "@types/fluent-ffmpeg": "^2.1.22",
     "@types/node-forge": "^1.3.4",
     "typescript": "^5.1.6"
   },
@@ -16,7 +17,12 @@
     "@peculiar/webcrypto": "^1.4.3",
     "axios-cookiejar-support": "^4.0.7",
     "base64-js": "^1.5.1",
+    "ffmpeg-static": "^5.2.0",
+    "fluent-ffmpeg": "^2.1.2",
     "gdgateway-client": "github:Ghost-Drive/gdgateway-client",
-    "separate-library": "github:SvirskyiAndrii/separate-library"
+    "node-forge": "^1.3.1",
+    "separate-library": "github:SvirskyiAndrii/separate-library",
+    "set-cookie-parser": "^2.6.0",
+    "sharp": "^0.32.6"
   }
 }
