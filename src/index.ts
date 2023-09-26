@@ -9,6 +9,8 @@ import {
   downloadFile,
   WebCrypto,
   LocalFileStream,
+  getThumbnailImage,
+  getThumbnailVideo,
 } from "separate-library/lib/es5";
 
 import {
@@ -21,23 +23,21 @@ import {
   handlers,
 } from "./functions";
 
-import { getThumbnailImage } from "./getThumbnail";
-
 const crypter = new WebCrypto();
 
 // UPLOAD FILE
 const upload = async ({ encrypt }) => {
-  const filename = "./src/river-5.jpg"; // > 1 mb (6 chunks)
-  const mimeType = "image/jpeg";
+  // const filename = "./src/river-5.jpg"; // (6 chunks) -image
+  // const mimeType = "image/jpeg";
 
-  // const filename = "./src/file-from-node.png"; // < 1 mb
-  // const mimeType = "image/png";
+  const filename = "./src/video.mp4"; // (30 chunks) - video
+  const mimeType = "video/mp4";
 
   const folderId = "";
 
   const { size } = await fs.promises.stat(filename);
 
-  const customFile = new LocalFileStream(size, filename, mimeType, folderId);
+  const file = new LocalFileStream(size, filename, mimeType, folderId);
 
   const {
     data: {
@@ -45,13 +45,15 @@ const upload = async ({ encrypt }) => {
       endpoint,
     },
   } = await getOneTimeToken({
-    filename: customFile.name,
-    filesize: customFile.size,
+    filename: file.name,
+    filesize: file.size,
   });
+
   let result;
+
   if (!encrypt) {
     result = await uploadFile({
-      file: customFile,
+      file,
       oneTimeToken,
       endpoint,
       callback,
@@ -69,12 +71,8 @@ const upload = async ({ encrypt }) => {
       data: { keys },
     } = await getKeysByWorkspace();
 
-    const base64Image = await getThumbnailImage({ path: filename });
-
-    console.log("THIS IS THUMBNAIL ----------------->>>", base64Image);
-
     result = await crypter.encodeFile({
-      file: customFile,
+      file,
       oneTimeToken,
       endpoint,
       callback,
@@ -83,6 +81,34 @@ const upload = async ({ encrypt }) => {
     });
 
     if (result) {
+      const slug = result?.data?.data?.slug;
+
+      if (file.type.startsWith("image")) {
+        await getThumbnailImage({
+          file,
+          path: filename,
+          quality: 3,
+          getOneTimeToken,
+          slug,
+        });
+      } else if (file.type.startsWith("video")) {
+        const ffmpegPath = require("@ffmpeg-installer/ffmpeg").path;
+        const ffmpeg = require("fluent-ffmpeg");
+
+        ffmpeg.setFfmpegPath(ffmpegPath);
+
+        const currentPath = process.cwd();
+        const ffmpegCommand = ffmpeg(`${currentPath}/${filename}`);
+
+        await getThumbnailVideo({
+          file,
+          path: filename,
+          ffmpegCommand,
+          quality: 3,
+          getOneTimeToken,
+          slug,
+        });
+      }
       const bufferKey = await crypto.subtle.exportKey("raw", key);
       const base64Key = convertArrayBufferToBase64(bufferKey);
 
@@ -99,34 +125,9 @@ const upload = async ({ encrypt }) => {
       }
 
       saveEncryptedFileKeys({
-        slug: result?.data?.data?.slug,
+        slug,
         encryptedKeys: encryptedKeys,
       });
-
-      const {
-        data: {
-          user_token: { token: thumbToken },
-          endpoint: thumbEndpoint,
-        },
-      } = await getOneTimeToken({
-        filename: customFile.name,
-        filesize: customFile.size,
-      });
-
-      const instance = axios.create({
-        headers: {
-          "x-file-name": customFile.name,
-          "Content-Type": "application/octet-stream",
-          "one-time-token": thumbToken,
-        },
-      });
-
-      if (base64Image) {
-        await instance.post(
-          `${thumbEndpoint}/chunked/thumb/${result?.data?.data?.slug}`,
-          base64Image
-        );
-      }
     }
   }
 
