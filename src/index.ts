@@ -78,6 +78,7 @@ const upload = async ({ encrypt }) => {
       callback,
       handlers,
       key,
+      crypto,
     });
 
     if (result) {
